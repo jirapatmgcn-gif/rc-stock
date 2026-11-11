@@ -387,7 +387,7 @@
     return Promise.all([fetchAll('stock_products?select=*&order=name.asc'), fetchAll('stock_moves?select=*&order=at.asc,created_at.asc')]).then(function(r){
       var ps=r[0].map(function(p){return {id:p.id,name:p.name,sku:p.sku||'',unit:p.unit||'ชิ้น',grp:p.grp||''}});
       var ms=r[1].map(function(m){return {id:m.id,product:m.product_id,type:m.type,qty:m.qty,delta:m.delta,reason:m.reason||'',ref:m.ref||'',at:new Date(m.at).toISOString(),byName:m.by_name||'',cid:m.client_id||'',created:m.created_at}});
-      var sig=ps.map(function(p){return p.id+p.name+p.sku+p.unit+p.grp}).join('|')+'#'+ms.map(function(m){return m.id}).join('|');
+      var sig=ps.map(function(p){return p.id+p.name+p.sku+p.unit+p.grp}).join('|')+'#'+ms.map(function(m){return m.id+m.ref+m.delta+m.byName}).join('|');
       S.loaded=true; S.loadErr='';
       if(!force && sig===S.sig) return;
       S.sig=sig; S.products=ps; S.moves=ms; compute(); renderAll();
