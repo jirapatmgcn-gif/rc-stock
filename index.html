@@ -112,6 +112,9 @@
 
   /* ---------- หน้ากลุ่ม ---------- */
   .ghead{display:flex; gap:14px; align-items:center}
+  .thumb{width:64px; height:64px; border-radius:6px; overflow:hidden; flex:none; border:0; padding:0; background:var(--surface2)}
+  .thumb img{width:100%; height:100%; object-fit:cover; display:block}
+  .head{align-items:center}
   .gthumb{width:96px; aspect-ratio:8/5; border-radius:6px; overflow:hidden; flex:none; background:var(--surface2)}
   .gthumb img{width:100%; height:100%; object-fit:cover; display:block}
   .gthumb .gph{font-size:1.8rem}
@@ -340,6 +343,17 @@
     g.items.forEach(function(p){ total+=Math.max(0,balOf(p.id)); var m=S.mon[p.id]; if(m){mi+=m.in; mo+=m.out;} if(stat(p)==='none') none++; });
     return {total:total, mi:mi, mo:mo, none:none, n:g.items.length};
   }
+  function imgKey(p){ return p.sku ? 'sku:'+p.sku : 'pid:'+p.id; }
+  function openImage(pid){
+    var p=prod(pid); if(!p) return; var key=imgKey(p);
+    openSheet('<h2 id="iTitle"></h2><img id="iPic" alt="" style="width:100%;border-radius:8px;display:block">'+
+      '<div class="actions"><button type="button" class="btn" id="iClose">ปิด</button><button type="button" class="btn primary" id="iChange">เปลี่ยนรูป</button></div>',
+      function(f){
+        f.querySelector('#iTitle').textContent=fullLabel(p); var im=f.querySelector('#iPic'); im.src=S.covers[key]||''; im.alt=fullLabel(p);
+        f.querySelector('#iClose').onclick=closeSheet;
+        f.querySelector('#iChange').onclick=function(){ closeSheet(); pickCover(key); };
+      });
+  }
   function canDelMove(m){ return !!(S.myHash && m.cid && m.cid===S.myHash && Date.now()-new Date(m.created).getTime()<86400000); }
 
   /* ---------- Supabase REST (public, no login) ---------- */
@@ -485,7 +499,9 @@
   function itemRow(p, maxBal){
     var k=stat(p), n=balOf(p.id), m=S.mon[p.id]||{in:0,out:0};
     var li=h('li','item'); li.dataset.id=p.id; li.dataset.k=k;
-    var head=h('div','head'), info=h('div');
+    var head=h('div','head'), info=h('div'); info.style.flex='1'; info.style.minWidth='0';
+    var src=S.covers[imgKey(p)];
+    if(src){ var th=h('button','thumb'); th.type='button'; th.dataset.act='img'; th.setAttribute('aria-label','ดูรูป '+rowTitle(p)); var im=h('img'); im.src=src; im.alt=rowTitle(p); im.loading='lazy'; th.appendChild(im); head.appendChild(th); }
     info.appendChild(h('div','name',rowTitle(p)));
     var subTxt = shadeOf(p) ? p.sku : ''; if(subTxt) info.appendChild(h('div','sub',subTxt));
     head.appendChild(info);
@@ -499,7 +515,9 @@
     var acts=h('div','acts');
     [['in','รับเข้า'],['out','จ่ายออก'],['count','นับจริง']].forEach(function(a){ var bt=h('button',null,a[1]); bt.type='button'; bt.dataset.act=a[0]; acts.appendChild(bt); });
     li.appendChild(acts);
-    var more=h('div','more'); var l1=h('button','link','ดูประวัติ'); l1.type='button'; l1.dataset.act='hist'; more.appendChild(l1); li.appendChild(more);
+    var more=h('div','more');
+    if(!src){ var l2=h('button','link','＋ เพิ่มรูป'); l2.type='button'; l2.dataset.act='addimg'; more.appendChild(l2); }
+    var l1=h('button','link','ดูประวัติ'); l1.type='button'; l1.dataset.act='hist'; more.appendChild(l1); li.appendChild(more);
     return li;
   }
   function renderGroup(){
@@ -782,6 +800,8 @@
   $('#gList').addEventListener('click',function(e){
     var b=e.target.closest('[data-act]'); if(!b) return; var li=b.closest('.item'); var pid=li.dataset.id, a=b.dataset.act;
     if(a==='in'||a==='out') openMove(a,pid); else if(a==='count') openCount(pid);
+    else if(a==='img') openImage(pid);
+    else if(a==='addimg'){ var pp=prod(pid); if(pp) pickCover(imgKey(pp)); }
     else if(a==='hist'){ S.hProd=pid; S.hGrp=null; S.hWho=''; go('hist'); }
   });
   $('#hSearch').addEventListener('input',function(e){ S.hq=e.target.value.trim(); S.hLimit=100; renderHist(); });
