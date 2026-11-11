@@ -80,13 +80,13 @@
   h3.sec{font-family:var(--disp); font-size:1rem; margin:0; display:flex; justify-content:space-between; align-items:baseline; gap:10px}
 
   /* ---------- หน้าเลือกชื่อ ---------- */
-  .people{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px}
+  .people{display:grid; grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); gap:12px}
   .pcard{cursor:pointer; display:flex; align-items:center; gap:12px; text-align:left; background:var(--surface); border:0; border-radius:6px; padding:16px; color:var(--ink); position:relative; overflow:hidden; transition:transform .22s cubic-bezier(.3,0,.2,1),background .22s,box-shadow .22s}
   .pcard::before{content:""; position:absolute; left:0; top:0; bottom:0; width:4px; background:var(--accent); transform:scaleY(0); transform-origin:top; transition:transform .22s}
   .pcard:hover{transform:scale(1.03); background:var(--surface2); box-shadow:var(--shadow)}
   .pcard:hover::before,.pcard.sel::before{transform:scaleY(1)}
   .pcard .avatar{width:38px; height:38px; font-size:1rem}
-  .pcard span.nm{font-weight:600; overflow-wrap:anywhere; line-height:1.25}
+  .pcard span.nm{font-weight:600; overflow-wrap:break-word; min-width:0; line-height:1.25}
   .pcard.add{background:transparent; border:1px dashed var(--line); color:var(--mute)}
   .pcard.add .avatar{background:var(--surface2); color:var(--ink)}
 
