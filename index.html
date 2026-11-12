@@ -140,6 +140,15 @@
   .gcam{position:absolute; z-index:5; right:8px; top:8px; width:34px; height:34px; border-radius:50%; border:0; background:rgba(0,0,0,.62); color:#fff; display:grid; place-items:center}
   .gcam:hover{background:var(--accent); color:var(--accent-ink)}
   .gcam svg{width:17px; height:17px}
+  .gcam.gdel{right:48px}
+  .gcam.gdel:hover{background:var(--lo); color:#fff}
+  .link.danger{color:var(--lo)}
+  .trl{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px; max-height:52vh; overflow:auto}
+  .trl li{display:flex; align-items:center; gap:10px; padding:8px 10px; border:1px solid var(--line); border-radius:8px}
+  .trl li.tg{background:rgba(var(--accent-rgb),.08); font-weight:600}
+  .trl .tn{flex:1; min-width:0}
+  .trl small{display:block; color:var(--mute); font-weight:400; font-size:.75rem}
+  .trl .btn{padding:6px 12px; min-height:0}
   .gbody{padding:12px 14px 14px; display:flex; flex-direction:column; gap:4px}
   .gt{font-family:var(--disp); font-size:1.12rem; font-weight:700; letter-spacing:-.01em; overflow-wrap:anywhere; line-height:1.2}
   .gs{font-size:.82rem; color:var(--mute)}
@@ -352,6 +361,7 @@
     <div class="empty" id="emptyHome" hidden></div>
     <div class="rowbtns">
       <button class="btn" id="addProduct" type="button">＋ เพิ่มสินค้า / กลุ่มใหม่</button>
+      <button class="btn" id="trashBtn" type="button" hidden>ถังขยะ</button>
       <button class="btn primary" id="expReport" type="button">⬇ ส่งออกรายงาน (Excel / PDF)</button>
     </div>
     <div id="mineBox" hidden>
@@ -368,6 +378,7 @@
       <button class="btn" id="gCover" type="button">เปลี่ยนรูปปก</button>
       <button class="btn" id="gAdd" type="button">＋ เพิ่มรหัส/สีในกลุ่มนี้</button>
       <button class="btn" id="gHist" type="button">ประวัติกลุ่มนี้</button>
+      <button class="btn danger" id="gDel" type="button">ลบกลุ่มนี้</button>
       <div class="seg" id="gSort" role="group" aria-label="เรียงสี" style="flex:1;min-width:260px;max-width:420px">
         <button type="button" data-s="qty" aria-pressed="true">เหลือมาก → น้อย</button>
         <button type="button" data-s="code" aria-pressed="false">ตามรหัสสี</button>
@@ -414,7 +425,7 @@
   var CFG = {url:'https://vjdxdguafljerfmvrnff.supabase.co', key:'sb_publishable_cSGKyg8ntbH3ie5MnVHxkg_az8r7GTi'};
   var CID_KEY = 'rcs_cid_v1', NAME_KEY = 'rcs_name_v1';
   var $ = function(s){return document.querySelector(s)};
-  var S = {products:[], moves:[], asc:[], bal:{}, has:{}, mon:{}, covers:{}, coverTs:{}, people:[],
+  var S = {products:[], all:[], trash:[], moves:[], asc:[], bal:{}, has:{}, mon:{}, covers:{}, coverTs:{}, people:[],
            view:'home', grp:'', hType:'all', hProd:null, hGrp:null, hWho:'', hq:'', hLimit:100,
            open:{}, openAll:{}, hMode:'list', hOpen:{},
            myName:'', myHash:'', loadErr:'', loaded:false, sig:''};
@@ -424,6 +435,7 @@
   };
   var TYPE_LABEL = {in:'รับเข้า', out:'จ่ายออก', adj:'ปรับยอด (นับจริง)'};
   var STAT_TXT = {none:'ยังไม่ตั้งยอด', ok:'มีของ', out:'หมด', neg:'ติดลบ'};
+  var BIN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>';
   var CAM = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-2h6l2 2h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>';
 
   /* ---------- helpers ---------- */
@@ -442,7 +454,8 @@
   }
   function initial(s){ s=String(s||'?').trim(); return (s.charAt(0)||'?').toUpperCase(); }
   function hue(s){ var x=0; s=String(s||''); for(var i=0;i<s.length;i++) x=(x*31+s.charCodeAt(i))%360; return x; }
-  function prod(id){return S.products.find(function(p){return p.id===id})||null;}
+  function prod(id){return S.all.find(function(p){return p.id===id})||null;}   // รวมสินค้าในถังขยะ (ให้ประวัติยังแสดงชื่อได้)
+  function isLive(id){ var p=prod(id); return !!(p && !p.deleted); }
   function balOf(id){return S.bal[id]||0;}
   function stat(p){ if(!S.has[p.id]) return 'none'; var n=balOf(p.id); return n<0?'neg':(n===0?'out':'ok'); }
   function grpOf(p){ if(p.grp) return p.grp; var i=(p.name||'').indexOf(' · '); return i>0 ? p.name.slice(0,i) : (p.name||''); }
@@ -524,12 +537,12 @@
   }
   function loadAll(force){
     return Promise.all([fetchAll('stock_products?select=*&order=name.asc'), fetchAll('stock_moves?select=*&order=at.asc,created_at.asc')]).then(function(r){
-      var ps=r[0].map(function(p){return {id:p.id,name:p.name,sku:p.sku||'',unit:p.unit||'ชิ้น',grp:p.grp||''}});
+      var ps=r[0].map(function(p){return {id:p.id,name:p.name,sku:p.sku||'',unit:p.unit||'ชิ้น',grp:p.grp||'',deleted:p.deleted_at||'',deletedBy:p.deleted_by||''}});
       var ms=r[1].map(function(m){return {id:m.id,product:m.product_id,type:m.type,qty:m.qty,delta:m.delta,reason:m.reason||'',ref:m.ref||'',at:new Date(m.at).toISOString(),byName:m.by_name||'',cid:m.client_id||'',created:m.created_at}});
-      var sig=ps.map(function(p){return p.id+p.name+p.sku+p.unit+p.grp}).join('|')+'#'+ms.map(function(m){return m.id+m.ref+m.delta+m.byName}).join('|');
+      var sig=ps.map(function(p){return p.id+p.name+p.sku+p.unit+p.grp+p.deleted}).join('|')+'#'+ms.map(function(m){return m.id+m.ref+m.delta+m.byName}).join('|');
       S.loaded=true; S.loadErr='';
       if(!force && sig===S.sig) return;
-      S.sig=sig; S.products=ps; S.moves=ms; compute(); renderAll();
+      S.sig=sig; S.all=ps; S.products=ps.filter(function(p){return !p.deleted}); S.trash=ps.filter(function(p){return p.deleted}); S.moves=ms; compute(); renderAll();
     });
   }
   function loadCovers(){ // ดึงเฉพาะ meta ก่อน แล้วโหลดรูปเฉพาะที่เปลี่ยน
@@ -550,6 +563,11 @@
   }
   function saveProduct(id,data){
     return rest('stock_products',{method:'POST',body:{id:id,name:data.name,sku:data.sku,unit:data.unit,grp:data.grp},prefer:'return=minimal'}).then(function(){return loadAll(true)});
+  }
+  // ย้ายลงถังขยะ (on=true) หรือกู้คืน (on=false) · ไม่ลบประวัติ
+  function trashProducts(ids, on){
+    var body = on ? {deleted_at:new Date().toISOString(), deleted_by:(S.myName||'').slice(0,60)} : {deleted_at:null, deleted_by:null};
+    return rest('stock_products?id=in.('+ids.map(function(x){return '"'+String(x).replace(/"/g,'')+'"'}).join(',')+')',{method:'PATCH',body:body,prefer:'return=minimal'}).then(function(){return loadAll(true)});
   }
   function deleteMove(id){ return rest('stock_moves?id=eq.'+encodeURIComponent(id),{method:'DELETE',prefer:'return=minimal'}).then(function(){return loadAll(true)}); }
   function saveCover(grp, dataUrl){
@@ -615,6 +633,7 @@
       var allOut = s.n>0 && s.total===0 && s.none<s.n; if(allOut) c.className+=' gout';
       var img=h('div','gimg'); img.appendChild(coverEl(g));
       var cam=h('button','gcam'); cam.type='button'; cam.innerHTML=CAM; cam.dataset.cover=g.name; cam.setAttribute('aria-label','เปลี่ยนรูปปก '+g.name); img.appendChild(cam);
+      var gd=h('button','gcam gdel'); gd.type='button'; gd.innerHTML=BIN; gd.dataset.del=g.name; gd.setAttribute('aria-label','ลบกลุ่ม '+g.name); gd.title='ลบกลุ่มนี้'; img.appendChild(gd);
       if(allOut) img.appendChild(h('span','gbadge','หมดทั้งกลุ่ม'));
       c.appendChild(img);
       var body=h('div','gbody'); body.appendChild(h('div','gt',g.name));
@@ -622,6 +641,7 @@
       var gn=h('div','gn'); gn.appendChild(h('span','i','+'+num(s.mi))); gn.appendChild(h('span','o','−'+num(s.mo))); gn.appendChild(h('span',null,'เดือนนี้')); body.appendChild(gn);
       c.appendChild(body); c.appendChild(previewEl(g,s)); box.appendChild(c);
     });
+    var tb=$('#trashBtn'); tb.hidden=!S.trash.length; tb.textContent='ถังขยะ ('+S.trash.length+')';
     var e=$('#emptyHome'); e.innerHTML='';
     if(!S.loaded){ e.hidden=false; e.appendChild(h('strong',null,'กำลังโหลดรายการสินค้า…')); }
     else if(!S.products.length){ e.hidden=false; e.appendChild(h('strong',null,'ยังไม่มีสินค้าในคลัง')); e.appendChild(h('span',null,'กด "เพิ่มสินค้า" แล้วรับเข้าเพื่อตั้งยอดตั้งต้น')); }
@@ -672,6 +692,7 @@
     var more=h('div','more'), open=!!S.open[p.id], cnt=movesOf(p.id).length;
     var l1=h('button','link',(open?'ซ่อนประวัติเข้า-ออก ▴':'ประวัติเข้า-ออก ('+cnt+') ▾')); l1.type='button'; l1.dataset.act='toggle'; l1.setAttribute('aria-expanded',String(open)); more.appendChild(l1);
     if(open){ var l2=h('button','link','เปิดในหน้าประวัติ'); l2.type='button'; l2.dataset.act='hist'; more.appendChild(l2); }
+    var l3=h('button','link danger','ลบสินค้านี้'); l3.type='button'; l3.dataset.act='trash'; more.appendChild(l3);
     li.appendChild(more);
     if(open) li.appendChild(phBlock(p, movesOf(p.id), S.openAll[p.id]?1e9:8, 'all'));
     return li;
@@ -719,7 +740,7 @@
   function mvRow(m, withDel){
     var p=prod(m.product), li=h('li','mv'); li.dataset.id=m.id;
     li.appendChild(h('div','ic '+m.type, m.type==='in'?'↓':m.type==='out'?'↑':'⇄'));
-    var mid=h('div'); mid.appendChild(h('div','mvt',p?fullLabel(p):'(สินค้าถูกลบ)'));
+    var mid=h('div'); mid.appendChild(h('div','mvt',p?fullLabel(p)+(p.deleted?' (อยู่ในถังขยะ)':''):'(สินค้าถูกลบ)'));
     var line=(m.type==='adj'?'ปรับยอดจากการนับ':(m.reason||TYPE_LABEL[m.type]))+(m.ref?' · '+m.ref:'');
     mid.appendChild(h('div','mvs',line));
     var byl=h('div','mvs'); if(isPerson(m.byName)) byl.appendChild(avatar(m.byName,'xs'));
@@ -981,6 +1002,59 @@
       });
   }
 
+  /* ---------- ลบสินค้า / กลุ่ม (ย้ายลงถังขยะ กู้คืนได้) ---------- */
+  function openTrashConfirm(items, label, isGroup){
+    if(!items.length) return; var busy=false, left=0;
+    items.forEach(function(p){ left+=Math.max(0,balOf(p.id)); });
+    openSheet('<h2 id="tTitle"></h2><p id="tMsg"></p><div class="preview" id="tWarn" hidden></div>'+
+      '<div class="actions"><button type="button" class="btn" id="tCancel">ยกเลิก</button><button type="button" class="btn danger" id="tOk">ย้ายลงถังขยะ</button></div>',
+      function(f){
+        f.querySelector('#tTitle').textContent = isGroup ? 'ลบกลุ่ม '+label+'?' : 'ลบ '+label+'?';
+        f.querySelector('#tMsg').textContent = (isGroup ? 'ทั้ง '+items.length+' รหัสในกลุ่มนี้' : 'สินค้านี้')+'จะหายจากหน้าคลังและรายงาน แต่ประวัติรับเข้า-จ่ายออกยังเก็บไว้ กู้คืนได้จากปุ่ม "ถังขยะ" ในหน้าแรก';
+        if(left>0){ var w=f.querySelector('#tWarn'); w.hidden=false; w.className='preview err'; w.appendChild(h('span',null,'ยังมีของเหลือ '+num(left)+' ชิ้น')); }
+        f.querySelector('#tCancel').onclick=closeSheet;
+        f.querySelector('#tOk').onclick=function(){
+          if(busy) return; busy=true;
+          trashProducts(items.map(function(p){return p.id}), true).then(function(){
+            closeSheet(); toast('ย้าย '+label+' ลงถังขยะแล้ว');
+            if(isGroup || (S.view==='group' && !groupsList().some(function(g){return g.name===S.grp}))) go('home');
+          }).catch(function(){ busy=false; toast('ลบไม่สำเร็จ ลองใหม่อีกครั้ง'); });
+        };
+      });
+  }
+  function trashGroup(name){ var g=groupsList().filter(function(x){return x.name===name})[0]; if(g) openTrashConfirm(g.items, name, true); }
+  function openTrash(){
+    openSheet('<h2>ถังขยะ</h2><p>สินค้าที่ถูกลบ ประวัติยังอยู่ครบ กดกู้คืนเพื่อเอากลับเข้าคลัง</p><ul class="trl" id="tList"></ul>'+
+      '<div class="actions"><button type="button" class="btn primary" id="tDone">ปิด</button></div>',
+      function(f){
+        function draw(){
+          var ul=f.querySelector('#tList'); ul.innerHTML='';
+          if(!S.trash.length){ ul.appendChild(h('li',null,'ถังขยะว่าง')); return; }
+          var m={}; S.trash.forEach(function(p){ var g=grpOf(p); (m[g]=m[g]||[]).push(p); });
+          Object.keys(m).sort(function(a,b){return a.localeCompare(b,'th')}).forEach(function(g){
+            var ps=m[g], liveN=S.products.filter(function(p){return grpOf(p)===g}).length;
+            if(ps.length>1 || !liveN){
+              var gl=h('li','tg'), gn=h('div','tn',g); gn.appendChild(h('small',null,ps.length+' รหัสในถังขยะ'));
+              gl.appendChild(gn); var gb=h('button','btn','กู้คืนทั้งกลุ่ม'); gb.type='button'; gb.dataset.ids=ps.map(function(p){return p.id}).join(','); gb.dataset.lbl=g; gl.appendChild(gb); ul.appendChild(gl);
+            }
+            ps.forEach(function(p){
+              var li=h('li'), tn=h('div','tn',fullLabel(p));
+              var when=p.deleted?new Date(p.deleted).toLocaleDateString('th-TH',{day:'numeric',month:'short'}):'';
+              tn.appendChild(h('small',null,'ลบโดย '+(p.deletedBy||'ไม่ระบุชื่อ')+(when?' · '+when:'')+' · คงเหลือ '+num(balOf(p.id))));
+              li.appendChild(tn); var b=h('button','btn','กู้คืน'); b.type='button'; b.dataset.ids=p.id; b.dataset.lbl=fullLabel(p); li.appendChild(b); ul.appendChild(li);
+            });
+          });
+        }
+        draw();
+        f.querySelector('#tList').addEventListener('click',function(e){
+          var b=e.target.closest('[data-ids]'); if(!b || b.disabled) return; b.disabled=true;
+          trashProducts(b.dataset.ids.split(','), false).then(function(){ toast('กู้คืน '+b.dataset.lbl+' แล้ว'); if(!S.trash.length) closeSheet(); else draw(); })
+            .catch(function(){ b.disabled=false; toast('กู้คืนไม่สำเร็จ'); });
+        });
+        f.querySelector('#tDone').onclick=closeSheet;
+      });
+  }
+
   /* ---------- cover picture ---------- */
   var coverTarget='';
   function processImage(file, size){
@@ -1040,6 +1114,7 @@
   function buildReport(){
     var cols={in:[],out:[],adj:[]}, val={in:{},out:{},adj:{}}, notes={};
     S.asc.forEach(function(m){
+      if(!isLive(m.product)) return;   // สินค้าในถังขยะไม่ออกรายงาน
       var d=ymd(new Date(m.at));
       var kind = m.type==='adj' ? 'adj' : ((m.type==='in' && /ติดลบในช่องจ่ายออก/.test(m.reason)) ? 'out' : (m.delta>0 ? 'in' : 'out'));
       var amount = kind==='adj' ? m.delta : (kind==='out' ? -m.delta : m.delta);
@@ -1248,6 +1323,8 @@
   $('#gAdd').onclick=function(){ openProduct(S.grp); };
   $('#gCover').onclick=function(){ pickCover(S.grp); };
   $('#gSort').onclick=function(e){ var b=e.target.closest('button'); if(!b) return; S.sort=b.dataset.s; try{ localStorage.setItem('rcs_sort_v1',S.sort); }catch(er){} renderGroup(); };
+  $('#gDel').onclick=function(){ trashGroup(S.grp); };
+  $('#trashBtn').onclick=openTrash;
   $('#gHist').onclick=function(){ S.hGrp=S.grp; S.hProd=null; S.hWho=''; go('hist'); };
   $('#backHome').onclick=function(){ go('home'); };
   $('#expReport').onclick=openExport; $('#expHist').onclick=exportHist;
@@ -1258,6 +1335,7 @@
   });
   $('#groups').addEventListener('click',function(e){
     var cam=e.target.closest('[data-cover]'); if(cam){ e.stopPropagation(); pickCover(cam.dataset.cover); return; }
+    var gd=e.target.closest('[data-del]'); if(gd){ e.stopPropagation(); trashGroup(gd.dataset.del); return; }
     if(Date.now()-lpAt<700) return;   // เพิ่งกดค้างเพื่อดูพรีวิว ไม่ต้องพาเข้าไป
     var c=e.target.closest('.gcard'); if(c) go('g/'+encodeURIComponent(c.dataset.g));
   });
@@ -1265,7 +1343,7 @@
   var lpTimer=null, lpAt=0;
   function clearPrev(except){ [].forEach.call(document.querySelectorAll('.gcard.prev'),function(x){ if(x!==except) x.classList.remove('prev'); }); }
   $('#groups').addEventListener('touchstart',function(e){
-    var c=e.target.closest('.gcard'); if(!c || e.target.closest('[data-cover]')) return;
+    var c=e.target.closest('.gcard'); if(!c || e.target.closest('[data-cover],[data-del]')) return;
     clearTimeout(lpTimer); lpTimer=setTimeout(function(){ clearPrev(c); c.classList.add('prev'); lpAt=Date.now(); },420);
   },{passive:true});
   ['touchend','touchmove','touchcancel'].forEach(function(ev){ $('#groups').addEventListener(ev,function(){ clearTimeout(lpTimer); },{passive:true}); });
@@ -1280,6 +1358,7 @@
     else if(a==='hist'){ S.hProd=pid; S.hGrp=null; S.hWho=''; go('hist'); }
     else if(a==='toggle'){ S.open[pid]=!S.open[pid]; renderGroup(); }
     else if(a==='all'){ S.openAll[pid]=true; renderGroup(); }
+    else if(a==='trash'){ var tp=prod(pid); if(tp) openTrashConfirm([tp], fullLabel(tp), false); }
     else if(a==='del') onDel(e);
   });
   $('#hMode').addEventListener('click',function(e){ var b=e.target.closest('button'); if(!b) return; S.hMode=b.dataset.m; renderHist(); });
