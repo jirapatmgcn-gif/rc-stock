@@ -194,7 +194,31 @@
   .acts button{min-height:42px; border-radius:7px; border:0; background:var(--surface2); font-weight:600; font-size:.88rem}
   .acts button[data-act="in"]{color:var(--hi); background:rgba(var(--hi-rgb),.14)}
   .acts button[data-act="out"]{color:var(--info); background:rgba(var(--info-rgb),.14)}
-  .more{display:flex; gap:4px; justify-content:flex-end}
+  .more{display:flex; gap:4px; justify-content:flex-end; flex-wrap:wrap}
+  /* ประวัติเข้า-ออกรายสินค้า */
+  .phist{display:flex; flex-direction:column; gap:8px; background:var(--surface2); border-radius:6px; padding:10px 12px}
+  .phs{display:flex; flex-wrap:wrap; gap:4px 14px; font-family:var(--mono); font-size:.78rem; color:var(--mute); font-variant-numeric:tabular-nums}
+  .phs .i{color:var(--hi)} .phs .o{color:var(--info)} .phs .b{color:var(--ink); font-weight:600}
+  .mml{list-style:none; margin:0; padding:0}
+  .mm{display:grid; grid-template-columns:52px 40px minmax(0,1fr) auto auto; gap:8px; align-items:baseline; padding:6px 0; border-top:1px solid var(--line); font-size:.8rem}
+  .mm:first-child{border-top:0}
+  .mmd{color:var(--mute); font-family:var(--mono); font-size:.74rem; white-space:nowrap}
+  .mmq{font-family:var(--mono); text-align:right; font-variant-numeric:tabular-nums}
+  .mm.in .mmq{color:var(--hi)} .mm.out .mmq{color:var(--info)} .mm.adj .mmq{color:var(--mute)}
+  .mmt{color:var(--mute); overflow-wrap:anywhere} .mmt .who{color:var(--ink); font-weight:600}
+  .mma{font-family:var(--mono); font-size:.72rem; color:var(--dim); white-space:nowrap; font-variant-numeric:tabular-nums}
+  .mm .link{padding:0 2px; font-size:.75rem}
+  .mmempty{font-size:.8rem; color:var(--dim)}
+  .phc{padding:14px 16px; border-top:1px solid var(--line); display:flex; flex-direction:column; gap:10px}
+  .phc:first-child{border-top:0}
+  .phh{display:flex; align-items:center; gap:10px}
+  .phh .thumb{width:40px; height:40px}
+  .phh .ph0{display:grid; place-items:center; font-family:var(--disp); font-weight:700; color:#fff}
+  .phh .t{flex:1; min-width:0; font-weight:600; overflow-wrap:anywhere}
+  .phh .t small{display:block; color:var(--mute); font-weight:400; font-size:.75rem; font-family:var(--mono)}
+  .phh .bb{font-family:var(--mono); font-weight:600; font-size:1.3rem; font-variant-numeric:tabular-nums}
+  .phh .bb.z{color:var(--dim)}
+  @media (max-width:420px){ .mm{grid-template-columns:46px 36px minmax(0,1fr) auto} .mm .mma{display:none} }
 
   /* ---------- ประวัติ ---------- */
   .controls{display:flex; flex-direction:column; gap:10px}
@@ -322,6 +346,10 @@
   <!-- 4) ประวัติ -->
   <section id="vHist" hidden>
     <div class="controls">
+      <div class="seg" id="hMode" role="group" aria-label="รูปแบบประวัติ">
+        <button type="button" data-m="list" aria-pressed="true">เรียงตามเวลา</button>
+        <button type="button" data-m="prod" aria-pressed="false">แยกตามสินค้า</button>
+      </div>
       <input class="search" id="hSearch" type="search" placeholder="ค้นหาสินค้า ครีเอเตอร์ หรือหมายเหตุ" autocomplete="off">
       <div class="seg" id="hSeg" role="group" aria-label="กรองประเภท">
         <button type="button" data-t="all" aria-pressed="true">ทั้งหมด</button>
@@ -355,6 +383,7 @@
   var $ = function(s){return document.querySelector(s)};
   var S = {products:[], moves:[], asc:[], bal:{}, has:{}, mon:{}, covers:{}, coverTs:{}, people:[],
            view:'home', grp:'', hType:'all', hProd:null, hGrp:null, hWho:'', hq:'', hLimit:100,
+           open:{}, openAll:{}, hMode:'list', hOpen:{},
            myName:'', myHash:'', loadErr:'', loaded:false, sig:''};
   var REASONS = {
     in:['รับจากแบรนด์ / ซัพพลายเออร์','คืนจากครีเอเตอร์','ยอดยกมา','อื่นๆ'],
@@ -590,9 +619,40 @@
     var acts=h('div','acts');
     [['in','รับเข้า'],['out','จ่ายออก'],['count','นับจริง']].forEach(function(a){ var bt=h('button',null,a[1]); bt.type='button'; bt.dataset.act=a[0]; acts.appendChild(bt); });
     li.appendChild(acts);
-    var more=h('div','more');
-    var l1=h('button','link','ดูประวัติ'); l1.type='button'; l1.dataset.act='hist'; more.appendChild(l1); li.appendChild(more);
+    var more=h('div','more'), open=!!S.open[p.id], cnt=movesOf(p.id).length;
+    var l1=h('button','link',(open?'ซ่อนประวัติเข้า-ออก ▴':'ประวัติเข้า-ออก ('+cnt+') ▾')); l1.type='button'; l1.dataset.act='toggle'; l1.setAttribute('aria-expanded',String(open)); more.appendChild(l1);
+    if(open){ var l2=h('button','link','เปิดในหน้าประวัติ'); l2.type='button'; l2.dataset.act='hist'; more.appendChild(l2); }
+    li.appendChild(more);
+    if(open) li.appendChild(phBlock(p, movesOf(p.id), S.openAll[p.id]?1e9:8, 'all'));
     return li;
+  }
+  /* ---------- ประวัติเข้า-ออกรายสินค้า ---------- */
+  function movesOf(pid){ return S.asc.filter(function(m){return m.product===pid}).reverse(); }
+  function miniRow(m){
+    var r=h('li','mm '+m.type); r.dataset.id=m.id;
+    r.appendChild(h('span','mmd',new Date(m.at).toLocaleDateString('th-TH',{day:'numeric',month:'short'})));
+    var sign=(m.delta||0)>0?'+':((m.delta||0)<0?'−':'');
+    r.appendChild(h('b','mmq',sign+num(Math.abs(m.delta||0))));
+    var t=h('span','mmt'); t.appendChild(h('span','who',m.byName||'ไม่ระบุชื่อ'));
+    var why=m.type==='adj'?'ปรับยอดจากการนับ'+(m.ref?' · '+m.ref:''):(m.ref||'');
+    if(why) t.appendChild(document.createTextNode(' · '+why));
+    r.appendChild(t);
+    r.appendChild(h('span','mma','เหลือ '+num(m.after)));
+    if(canDelMove(m)){ var del=h('button','link','ลบ'); del.type='button'; del.dataset.act='del'; r.appendChild(del); } else r.appendChild(h('span'));
+    return r;
+  }
+  function phBlock(p, ms, limit, moreAct){
+    var box=h('div','phist'), s={in:0,out:0,adj:0};
+    ms.forEach(function(m){ if(m.type==='adj') s.adj+=m.delta; else if(m.delta>0) s.in+=m.delta; else s.out+=-m.delta; });
+    var sum=h('div','phs');
+    sum.appendChild(h('span','i','รับเข้า +'+num(s.in))); sum.appendChild(h('span','o','จ่ายออก −'+num(s.out)));
+    if(s.adj) sum.appendChild(h('span',null,'ปรับยอด '+(s.adj>0?'+':'−')+num(Math.abs(s.adj))));
+    sum.appendChild(h('span','b','คงเหลือ '+num(balOf(p.id))+' '+(p.unit||'ชิ้น')));
+    box.appendChild(sum);
+    if(!ms.length){ box.appendChild(h('div','mmempty','ยังไม่มีรายการเข้า-ออก')); return box; }
+    var ul=h('ul','mml'); ms.slice(0,limit).forEach(function(m){ ul.appendChild(miniRow(m)); }); box.appendChild(ul);
+    if(ms.length>limit){ var b=h('button','link','แสดงทั้งหมด '+ms.length+' รายการ'); b.type='button'; b.dataset.act=moreAct; box.appendChild(b); }
+    return box;
   }
   function renderGroup(){
     var gl=groupsList().filter(function(g){return g.name===S.grp}), g=gl[0];
@@ -642,14 +702,32 @@
     var chipBox=$('#hProdChip'); chipBox.innerHTML='';
     var lbl = S.hProd ? (prod(S.hProd)?fullLabel(prod(S.hProd)):'สินค้า') : (S.hGrp ? 'กลุ่ม '+S.hGrp : '');
     if(lbl){ var c=h('span','chipx'); c.appendChild(h('span',null,'เฉพาะ '+lbl)); var x=h('button',null,'×'); x.type='button'; x.setAttribute('aria-label','ล้างตัวกรอง'); x.onclick=function(){S.hProd=null; S.hGrp=null; renderHist();}; c.appendChild(x); chipBox.appendChild(c); }
+    [].forEach.call($('#hMode').querySelectorAll('button'),function(x){x.setAttribute('aria-pressed',String(x.dataset.m===S.hMode))});
     var last='', n=0;
+    if(S.hMode==='prod'){
+      // แยกตามสินค้า: การ์ดละสินค้า เรียงตามกลุ่ม แต่ละใบมียอดรวมเข้า/ออก และรายการล่าสุด
+      var byP={}; rows.forEach(function(m){ (byP[m.product]=byP[m.product]||[]).push(m); });
+      groupsList().forEach(function(g){ g.items.forEach(function(p){
+        var ms=byP[p.id]; if(!ms) return;
+        var li=h('li','phc'); li.dataset.pid=p.id;
+        var hd=h('div','phh'), src=S.covers[imgKey(p)];
+        if(src){ var th=h('span','thumb'); var im=h('img'); im.src=src; im.alt=''; im.loading='lazy'; th.appendChild(im); hd.appendChild(th); }
+        else { var ph=h('span','thumb ph0',initial(rowTitle(p))); ph.style.background='hsl('+hue(rowTitle(p))+' 35% 24%)'; hd.appendChild(ph); }
+        var t=h('div','t',grpOf(p)+(shadeOf(p)?' · '+shadeOf(p):'')); if(p.sku && p.sku!==grpOf(p)) t.appendChild(h('small',null,p.sku)); hd.appendChild(t);
+        hd.appendChild(h('span','bb'+(stat(p)==='out'?' z':''),num(balOf(p.id))));
+        li.appendChild(hd);
+        li.appendChild(phBlock(p, ms, S.hOpen[p.id]?1e9:5, 'hall'));
+        list.appendChild(li); n++;
+      }); });
+      $('#moreBtn').hidden=true;
+    } else
     rows.slice(0,S.hLimit).forEach(function(m){
       var d=dayLabel(m.at); if(d!==last){ list.appendChild(h('li','day',d)); last=d; }
       list.appendChild(mvRow(m,true)); n++;
     });
     var e=$('#emptyHist'); e.innerHTML=''; list.hidden=!n;
     if(S.loaded && !n){ e.hidden=false; if(!S.moves.length){ e.appendChild(h('strong',null,'ยังไม่มีรายการรับเข้าหรือจ่ายออก')); } else e.appendChild(h('strong',null,'ไม่พบรายการที่ตรงกับตัวกรอง')); } else e.hidden=true;
-    var more=$('#moreBtn'); more.hidden=rows.length<=S.hLimit; more.textContent='แสดงเพิ่ม (เหลือ '+num(Math.max(0,rows.length-S.hLimit))+')';
+    var more=$('#moreBtn'); more.hidden=S.hMode==='prod' || rows.length<=S.hLimit; more.textContent='แสดงเพิ่ม (เหลือ '+num(Math.max(0,rows.length-S.hLimit))+')';
   }
   function renderAll(){
     renderChrome();
@@ -994,15 +1072,20 @@
     else if(a==='img') openImage(pid);
     else if(a==='addimg'){ var pp=prod(pid); if(pp) pickCover(imgKey(pp)); }
     else if(a==='hist'){ S.hProd=pid; S.hGrp=null; S.hWho=''; go('hist'); }
+    else if(a==='toggle'){ S.open[pid]=!S.open[pid]; renderGroup(); }
+    else if(a==='all'){ S.openAll[pid]=true; renderGroup(); }
+    else if(a==='del') onDel(e);
   });
+  $('#hMode').addEventListener('click',function(e){ var b=e.target.closest('button'); if(!b) return; S.hMode=b.dataset.m; renderHist(); });
+  $('#hList').addEventListener('click',function(e){ var b=e.target.closest('[data-act="hall"]'); if(!b) return; S.hOpen[b.closest('.phc').dataset.pid]=true; renderHist(); });
   $('#hSearch').addEventListener('input',function(e){ S.hq=e.target.value.trim(); S.hLimit=100; renderHist(); });
   $('#hSeg').addEventListener('click',function(e){ var b=e.target.closest('button'); if(!b) return; S.hType=b.dataset.t; S.hLimit=100;
     [].forEach.call($('#hSeg').querySelectorAll('button'),function(x){x.setAttribute('aria-pressed',String(x===b))}); renderHist(); });
   $('#hWho').addEventListener('click',function(e){ var b=e.target.closest('button'); if(!b) return; S.hWho=b.dataset.who; S.hLimit=100; renderHist(); });
   $('#moreBtn').onclick=function(){ S.hLimit+=100; renderHist(); };
   function onDel(e){
-    var b=e.target.closest('[data-act="del"]'); if(!b) return; var id=b.closest('.mv').dataset.id;
-    if(b.dataset.arm!=='1'){ b.dataset.arm='1'; b.textContent='ยืนยันลบ? ยอดคงเหลือจะเปลี่ยน'; setTimeout(function(){ if(b.isConnected){b.dataset.arm='0'; b.textContent='ลบรายการ';} },4000); return; }
+    var b=e.target.closest('[data-act="del"]'); if(!b) return; var id=b.closest('.mv,.mm').dataset.id;
+    if(b.dataset.arm!=='1'){ var orig=b.textContent; b.dataset.arm='1'; b.textContent='ยืนยันลบ?'; setTimeout(function(){ if(b.isConnected){b.dataset.arm='0'; b.textContent=orig;} },4000); return; }
     deleteMove(id).then(function(){toast('ลบรายการแล้ว')}).catch(function(){toast('ลบไม่สำเร็จ')});
   }
   $('#hList').addEventListener('click',onDel); $('#mineList').addEventListener('click',onDel);
