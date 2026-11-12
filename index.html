@@ -168,6 +168,14 @@
   .rp tr.zero td{color:#9a9a9a; background:#f4f4f4}
   .rp tr.neg td.bal{color:#c00}
   .rp tr.tot td{font-weight:700; background:#eee}
+  .rp tr.sub td{font-weight:600; background:#f7f7f7}
+  .rp h2.sec{font-family:var(--disp); font-size:12pt; margin:12px 0 4px}
+  .rp h2.pb{break-before:page; page-break-before:always; margin-top:0}
+  .checks{display:flex; flex-direction:column; gap:8px}
+  .chk{display:flex; gap:10px; align-items:flex-start; padding:10px 12px; border:1px solid var(--line); border-radius:8px; background:var(--surface2); cursor:pointer; color:var(--ink)}
+  .chk input{width:18px; height:18px; margin-top:2px; accent-color:var(--accent); flex:none}
+  .chk b{font-weight:600}
+  .chk small{display:block; color:var(--mute); font-size:.78rem; font-weight:400}
   .rp sup{color:#0a7d6e; font-weight:700; margin-left:1px}
   .rp ol{margin:10px 0 0; padding-left:18px; columns:2; column-gap:24px; font-size:7.5pt; color:#333}
   .rp-wm{position:fixed; inset:0; z-index:2; pointer-events:none; display:grid; grid-template-columns:repeat(3,1fr); grid-auto-rows:150px; align-items:center; justify-items:center; overflow:hidden}
@@ -343,8 +351,7 @@
     <div class="empty" id="emptyHome" hidden></div>
     <div class="rowbtns">
       <button class="btn" id="addProduct" type="button">＋ เพิ่มสินค้า / กลุ่มใหม่</button>
-      <button class="btn" id="expXlsx" type="button">⬇ รายงานสต็อก Excel</button>
-      <button class="btn" id="expPdf" type="button">⬇ รายงานสต็อก PDF</button>
+      <button class="btn primary" id="expReport" type="button">⬇ ส่งออกรายงาน (Excel / PDF)</button>
     </div>
     <div id="mineBox" hidden>
       <h3 class="sec"><span id="mineTitle">ล่าสุดของคุณ</span><button class="link" id="mineAll" type="button">ดูทั้งหมด</button></h3>
@@ -1037,11 +1044,14 @@
   }
   function colList(R){ var L=[]; ['in','out','adj'].forEach(function(k){ R.cols[k].forEach(function(d){ L.push({k:k,d:d}); }); }); return L; }
 
-  function exportPdf(){
+  function exportPdf(opts){
+    opts=opts||{stock:true};
     var R=buildReport(), L=colList(R), pa=$('#printArea'); pa.innerHTML='';
     var wm=h('div','rp-wm'); for(var i=0;i<24;i++) wm.appendChild(h('span',null,'ส่งออกโดย '+R.by+' · '+R.when)); pa.appendChild(wm);
     pa.appendChild(h('h1',null,'รายงานสต็อก Red Chamber'));
     pa.appendChild(h('p','meta','ข้อมูล ณ '+R.when+' · ส่งออกโดย '+R.by+' · '+S.products.length+' รหัส · '+S.moves.length+' รายการ'));
+    if(opts.stock){
+    pa.appendChild(h('h2','sec','ตารางสต็อก (แบบชีต)'));
     var t=h('table'), th=h('thead'), r1=h('tr'), r2=h('tr');
     [['Product','l'],['ชื่อสี','l'],['Color','']].forEach(function(x){ var c=h('th',x[1],x[0]); c.rowSpan=2; r1.appendChild(c); });
     [['in','Stock In','gi'],['out','Stock Out','go'],['adj','ปรับยอด','ga']].forEach(function(x){ if(R.cols[x[0]].length){ var c=h('th',x[2],x[1]); c.colSpan=R.cols[x[0]].length; r1.appendChild(c); R.cols[x[0]].forEach(function(d){ r2.appendChild(h('th',x[2],hdrDate(d))); }); } });
@@ -1061,21 +1071,120 @@
     L.forEach(function(c){ tt.appendChild(h('td',null,sums[c.k+c.d]?String(sums[c.k+c.d]):'')); });
     tt.appendChild(h('td','bal',String(total))); tb.appendChild(tt); t.appendChild(tb); pa.appendChild(t);
     if(nlist.length){ var ol=h('ol'); nlist.forEach(function(n){ ol.appendChild(h('li',null,n.txt)); }); pa.appendChild(h('p','meta','หมายเหตุ (ใครเป็นคนเอาออก / ให้ใคร):')); pa.appendChild(ol); }
+    }
+    var T=reportTables(), first=!opts.stock;
+    ['summary','people','hist'].forEach(function(k){
+      if(!opts[k]) return; var sec=T[k];
+      pa.appendChild(h('h2','sec'+(first?'':' pb'),sec.title)); first=false;
+      if(sec.meta) pa.appendChild(h('p','meta',sec.meta));
+      var tb2=h('table'), hd2=h('thead'), hr=h('tr'); sec.head.forEach(function(c){ hr.appendChild(h('th',c[1]||null,c[0])); }); hd2.appendChild(hr); tb2.appendChild(hd2);
+      var bd=h('tbody'); sec.rows.forEach(function(r){ var tr=h('tr',r.cls||''); r.cells.forEach(function(v,i){ tr.appendChild(h('td',sec.head[i][1]||null,(v===''||v==null)?'':String(v))); }); bd.appendChild(tr); });
+      tb2.appendChild(bd); pa.appendChild(tb2);
+    });
     var old=document.title; document.title=R.file;
     setTimeout(function(){ window.print(); document.title=old; },80);
   }
 
+  /* หน้าต่างเลือกส่งออก: ไฟล์ Excel/PDF + เลือกตารางที่จะใส่ (จำค่าที่เลือกล่าสุดไว้ในเครื่อง) */
+  function openExport(){
+    var EXP_KEY='rcs_export_v1', fmt='xlsx', o={stock:true,summary:true,people:true,hist:false};
+    try{ var sv=JSON.parse(localStorage.getItem(EXP_KEY)||'null'); if(sv){ fmt=sv.fmt||fmt; for(var k in o) if(sv.o && k in sv.o) o[k]=!!sv.o[k]; } }catch(e){}
+    var OPTS=[['stock','ตารางสต็อก (แบบชีตเดิม)','รับเข้า/จ่ายออกรายวัน + หมายเหตุว่าใครเอาออกให้ใคร'],
+              ['summary','สรุปยอดรายสินค้า','รวมรับเข้า/จ่ายออก/คงเหลือ แยกกลุ่ม พร้อมยอดรวมกลุ่มและทั้งหมด'],
+              ['people','สรุปตามคนบันทึก','แต่ละคนรับเข้า/จ่ายออกไปกี่ชิ้น กี่ครั้ง'],
+              ['hist','ประวัติรายการทั้งหมด','ทุกรายการ เรียงจากล่าสุด']];
+    openSheet('<h2>ส่งออกรายงาน</h2><p id="xWho"></p>'+
+      '<div class="field">ไฟล์<div class="seg" id="xFmt"><button type="button" data-f="xlsx">Excel (.xlsx)</button><button type="button" data-f="pdf">PDF</button></div></div>'+
+      '<div class="field">เลือกตารางที่จะใส่<div class="checks" id="xOpt"></div></div>'+
+      '<p id="xNote"></p><div class="actions"><button type="button" class="btn" id="xCancel">ยกเลิก</button><button type="button" class="btn primary" id="xGo">ส่งออก</button></div>',
+      function(f){
+        f.querySelector('#xWho').textContent='ทุกไฟล์มีลายน้ำ "ส่งออกโดย '+(S.myName||'ไม่ระบุชื่อ')+' · วันเวลา"';
+        var box=f.querySelector('#xOpt');
+        OPTS.forEach(function(x){ var lab=h('label','chk'), cb=h('input'); cb.type='checkbox'; cb.id='x_'+x[0]; cb.checked=o[x[0]]; lab.appendChild(cb); var sp=h('span'); sp.appendChild(h('b',null,x[1])); sp.appendChild(h('small',null,x[2])); lab.appendChild(sp); box.appendChild(lab); });
+        function sync(){
+          [].forEach.call(f.querySelectorAll('#xFmt button'),function(b){ b.setAttribute('aria-pressed',String(b.dataset.f===fmt)); });
+          OPTS.forEach(function(x){ o[x[0]]=f.querySelector('#x_'+x[0]).checked; });
+          var n=OPTS.filter(function(x){return o[x[0]]}).length;
+          f.querySelector('#xGo').disabled=!n;
+          f.querySelector('#xNote').textContent = !n ? 'เลือกอย่างน้อย 1 ตาราง' : (fmt==='pdf' ? 'จะเปิดหน้าพิมพ์ของเบราว์เซอร์ ให้เลือก "บันทึกเป็น PDF" · แต่ละตารางขึ้นหน้าใหม่ แนวนอน A4' : 'แต่ละตารางเป็นแผ่นงาน (sheet) แยกในไฟล์เดียว · แผ่น "สรุปยอด" อยู่หน้าแรก');
+        }
+        f.querySelector('#xFmt').onclick=function(e){ var b=e.target.closest('button'); if(!b) return; fmt=b.dataset.f; sync(); };
+        box.addEventListener('change',sync); sync();
+        f.querySelector('#xCancel').onclick=closeSheet;
+        f.querySelector('#xGo').onclick=function(){
+          try{ localStorage.setItem(EXP_KEY,JSON.stringify({fmt:fmt,o:o})); }catch(e){}
+          var sel={}; for(var k in o) sel[k]=o[k];
+          closeSheet(); if(fmt==='pdf') exportPdf(sel); else exportXlsx(sel);
+        };
+      });
+  }
   function watermarkPng(text){
     var c=document.createElement('canvas'); c.width=900; c.height=420; var x=c.getContext('2d');
     x.translate(450,210); x.rotate(-24*Math.PI/180); x.textAlign='center'; x.textBaseline='middle';
     x.fillStyle='rgba(0,0,0,0.09)'; x.font='700 34px "IBM Plex Sans Thai", "Leelawadee UI", Tahoma, sans-serif'; x.fillText(text,0,0);
     return c.toDataURL('image/png').split(',')[1];
   }
-  function exportXlsx(){
+  /* ตารางสรุปที่ใช้ร่วมกันทั้ง Excel (แผ่นงานแยก) และ PDF (หน้าแยก) */
+  function reportTables(){
+    var groups=[], tot={n:0,in:0,out:0,adj:0,bal:0,mout:0,zero:0};
+    groupsList().forEach(function(g){
+      var gs={name:g.name,in:0,out:0,adj:0,bal:0,mout:0,rows:[]};
+      g.items.forEach(function(p){
+        var s={in:0,out:0,adj:0}, last='';
+        S.asc.forEach(function(m){ if(m.product!==p.id) return; if(m.type==='adj') s.adj+=m.delta; else if(m.delta>0) s.in+=m.delta; else s.out+=-m.delta; last=m.at; });
+        var st=stat(p), b=balOf(p.id), mo=(S.mon[p.id]||{}).out||0;
+        gs.rows.push({shade:shadeOf(p), sku:p.sku||(shadeOf(p)?'':p.name), in:s.in, out:s.out, adj:s.adj, bal:b, mout:mo, st:st, last:last?ymd(new Date(last)):''});
+        gs.in+=s.in; gs.out+=s.out; gs.adj+=s.adj; gs.bal+=Math.max(0,b); gs.mout+=mo; tot.n++; if(st==='out') tot.zero++;
+      });
+      ['in','out','adj','bal','mout'].forEach(function(k){ tot[k]+=gs[k]; }); groups.push(gs);
+    });
+    var sumRows=[];
+    groups.forEach(function(g){
+      g.rows.forEach(function(r,i){ sumRows.push({cls:r.st==='out'?'zero':(r.st==='neg'?'neg':''), cells:[i===0?g.name:'', r.shade, r.sku, r.in||'', r.out||'', r.adj||'', r.st==='none'?'':r.bal, r.mout||'', STAT_TXT[r.st], r.last]}); });
+      sumRows.push({cls:'sub', cells:['รวม '+g.name,'','',g.in||'',g.out||'',g.adj||'',g.bal,g.mout||'','','']});
+    });
+    sumRows.push({cls:'tot', cells:['รวมทั้งหมด','','',tot.in,tot.out,tot.adj||'',tot.bal,tot.mout||'','','']});
+    var ppl={}; S.moves.forEach(function(m){ var n=isPerson(m.byName)?m.byName:'นำเข้าจากชีต (ไม่มีชื่อ)'; var x=ppl[n]||(ppl[n]={name:n,times:0,in:0,out:0,adj:0,last:''}); x.times++; if(m.type==='adj') x.adj+=m.delta; else if(m.delta>0) x.in+=m.delta; else x.out+=-m.delta; if(m.at>x.last) x.last=m.at; });
+    var pRows=Object.keys(ppl).map(function(k){return ppl[k]}).sort(function(a,b){return b.out-a.out||b.times-a.times}).map(function(p){ return {cls:'', cells:[p.name,p.times,p.in||'',p.out||'',p.adj||'',p.last?ymd(new Date(p.last)):'']}; });
+    var hRows=S.asc.slice().reverse().map(function(m){ var p=prod(m.product); return {cls:'', cells:[ymd(new Date(m.at)), p?grpOf(p):'(ลบแล้ว)', p?(shadeOf(p)||p.sku):'', TYPE_LABEL[m.type]||m.type, m.delta, m.byName, m.ref, m.after]}; });
+    return {
+      summary:{title:'สรุปยอดรายสินค้า', sheet:'สรุปยอด', meta:'ทั้งหมด '+tot.n+' รหัส · คงเหลือรวม '+num(tot.bal)+' ชิ้น · รับเข้ารวม '+num(tot.in)+' · จ่ายออกรวม '+num(tot.out)+(tot.adj?' · ปรับยอด '+tot.adj:'')+' · หมดแล้ว '+tot.zero+' รหัส',
+        head:[['กลุ่ม','l'],['ชื่อสี','l'],['รหัส'],['รับเข้ารวม'],['จ่ายออกรวม'],['ปรับยอด'],['คงเหลือ'],['จ่ายออกเดือนนี้'],['สถานะ'],['เคลื่อนไหวล่าสุด']], rows:sumRows, widths:[20,13,10,11,11,9,10,13,12,14]},
+      people:{title:'สรุปตามคนบันทึก', sheet:'ตามคนบันทึก', meta:'นับจากทุกรายการในระบบ · ชิ้นที่รับเข้า/จ่ายออกตามชื่อที่เลือกตอนบันทึก',
+        head:[['ชื่อ','l'],['จำนวนครั้ง'],['รับเข้า (ชิ้น)'],['จ่ายออก (ชิ้น)'],['ปรับยอด'],['ล่าสุด']], rows:pRows, widths:[24,12,13,13,10,14]},
+      hist:{title:'ประวัติรายการทั้งหมด', sheet:'ประวัติ', meta:S.moves.length+' รายการ เรียงจากล่าสุด',
+        head:[['วันที่'],['กลุ่ม','l'],['สี/รหัส','l'],['ประเภท'],['จำนวน'],['ผู้บันทึก','l'],['ให้ใคร / หมายเหตุ','l'],['คงเหลือหลังรายการ']], rows:hRows, widths:[12,18,14,16,9,20,40,12]}
+    };
+  }
+  function xlsxSheet(wb, R, sec, wid){
+    var ws=wb.addWorksheet(sec.sheet,{views:[{state:'frozen',ySplit:4}],pageSetup:{orientation:'landscape',paperSize:9,fitToPage:true,fitToWidth:1,fitToHeight:0}});
+    ws.headerFooter.oddHeader='&C&"-,Bold"ส่งออกโดย '+R.by+' · '+R.when; ws.headerFooter.oddFooter='&L'+sec.title+'&Rหน้า &P / &N';
+    var N=sec.head.length, thin={style:'thin',color:{argb:'FFBBBBBB'}}, box={top:thin,left:thin,bottom:thin,right:thin};
+    ws.mergeCells(1,1,1,N); ws.getCell(1,1).value=sec.title+' · Red Chamber'; ws.getCell(1,1).font={bold:true,size:14};
+    ws.mergeCells(2,1,2,N); ws.getCell(2,1).value='ข้อมูล ณ '+R.when+' · ส่งออกโดย '+R.by+(sec.meta?' · '+sec.meta:''); ws.getCell(2,1).font={color:{argb:'FF666666'}};
+    sec.head.forEach(function(hd,i){ var c=ws.getCell(4,i+1); c.value=hd[0]; c.font={bold:true}; c.border=box; c.alignment={horizontal:'center',vertical:'middle',wrapText:true}; c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFEEEEEE'}}; });
+    sec.rows.forEach(function(r,ri){
+      r.cells.forEach(function(v,i){
+        var c=ws.getCell(5+ri,i+1); c.value=(v===''||v==null)?null:v; c.border=box;
+        c.alignment={horizontal:(sec.head[i][1]==='l'?'left':'center'), vertical:'top', wrapText:true};
+        if(r.cls==='zero'){ c.font={color:{argb:'FF9A9A9A'}}; c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF2F2F2'}}; }
+        else if(r.cls==='sub'){ c.font={bold:true}; c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF7F7F7'}}; }
+        else if(r.cls==='tot'){ c.font={bold:true}; c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFE6E6E6'}}; }
+        else if(r.cls==='neg' && i===6){ c.font={bold:true,color:{argb:'FFCC0000'}}; }
+      });
+    });
+    sec.widths.forEach(function(w,i){ ws.getColumn(i+1).width=w; });
+    ws.addBackgroundImage(wid);
+  }
+  function exportXlsx(opts){
+    opts=opts||{stock:true};
     toast('กำลังสร้างไฟล์ Excel…');
     loadScript(EXCELJS_URL).then(function(){
       var R=buildReport(), L=colList(R), N=3+L.length+1;
       var wb=new ExcelJS.Workbook(); wb.creator=R.by; wb.created=new Date();
+      var wid=wb.addImage({base64:watermarkPng('ส่งออกโดย '+R.by+' · '+R.when), extension:'png'});
+      if(opts.summary) xlsxSheet(wb, R, reportTables().summary, wid);   // แผ่นสรุปยอดอยู่หน้าแรก
+      if(opts.stock){
       var ws=wb.addWorksheet('Stock',{views:[{state:'frozen',xSplit:3,ySplit:5}],pageSetup:{orientation:'landscape',paperSize:9,fitToPage:true,fitToWidth:1,fitToHeight:0}});
       ws.headerFooter.oddHeader='&C&"-,Bold"ส่งออกโดย '+R.by+' · '+R.when;
       ws.headerFooter.oddFooter='&Lรายงานสต็อก Red Chamber&Rหน้า &P / &N';
@@ -1101,7 +1210,9 @@
       ws.getCell(r,N).value=total; ws.getCell(r,N).alignment={horizontal:'center'};
       for(var cc=1;cc<=N;cc++){ var z=ws.getCell(r,cc); z.font={bold:true}; z.border=box; z.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFEEEEEE'}}; }
       ws.getColumn(1).width=20; ws.getColumn(2).width=13; ws.getColumn(3).width=10; for(var i=4;i<N;i++) ws.getColumn(i).width=7.5; ws.getColumn(N).width=11;
-      var wid=wb.addImage({base64:watermarkPng('ส่งออกโดย '+R.by+' · '+R.when), extension:'png'}); ws.addBackgroundImage(wid);
+      ws.addBackgroundImage(wid);
+      }
+      var T=reportTables(); ['people','hist'].forEach(function(k){ if(opts[k]) xlsxSheet(wb, R, T[k], wid); });
       return wb.xlsx.writeBuffer().then(function(buf){
         var blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
         var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=R.file+'.xlsx'; document.body.appendChild(a); a.click(); a.remove();
@@ -1123,7 +1234,7 @@
   $('#gCover').onclick=function(){ pickCover(S.grp); };
   $('#gHist').onclick=function(){ S.hGrp=S.grp; S.hProd=null; S.hWho=''; go('hist'); };
   $('#backHome').onclick=function(){ go('home'); };
-  $('#expXlsx').onclick=exportXlsx; $('#expPdf').onclick=exportPdf; $('#expHist').onclick=exportHist;
+  $('#expReport').onclick=openExport; $('#expHist').onclick=exportHist;
   $('#mineAll').onclick=function(){ S.hWho=S.myName; S.hProd=null; S.hGrp=null; go('hist'); };
   $('#people').addEventListener('click',function(e){
     var b=e.target.closest('.pcard'); if(!b) return;
