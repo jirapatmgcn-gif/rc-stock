@@ -97,10 +97,25 @@
   .gcard::before{content:""; position:absolute; left:0; top:0; bottom:0; width:4px; z-index:2; background:var(--accent); transform:scaleY(0); transform-origin:top; transition:transform .22s}
   .gcard:hover{transform:scale(1.03); background:var(--surface2); box-shadow:var(--shadow)}
   .gcard:hover::before{transform:scaleY(1)}
-  .gimg{position:relative; aspect-ratio:8/5; background:var(--surface2); overflow:hidden}
+  .gimg{position:relative; aspect-ratio:1/1; background:var(--surface2); overflow:hidden}
+  .gcard{-webkit-touch-callout:none; -webkit-user-select:none; user-select:none}
+  /* พรีวิวตอนชี้ค้าง (มือถือ = กดค้าง): บอกว่าแต่ละสีเหลือกี่ชิ้น */
+  .gprev{position:absolute; inset:0; z-index:3; background:rgba(11,11,11,.95); padding:14px; display:flex; flex-direction:column; gap:8px; opacity:0; pointer-events:none; transition:opacity .15s ease .15s}
+  @media (hover:hover){ .gcard:hover .gprev{opacity:1} }
+  .gcard.prev .gprev{opacity:1}
+  .pvt{font-family:var(--disp); font-weight:700; font-size:1rem; line-height:1.2}
+  .pvl{display:flex; flex-direction:column; gap:6px; overflow:hidden; flex:1; min-height:0}
+  .pv{display:flex; align-items:center; gap:8px; font-size:.82rem}
+  .pv img,.pvph{width:30px; height:30px; border-radius:5px; object-fit:cover; flex:none}
+  .pvph{display:grid; place-items:center; font-family:var(--disp); font-weight:700; font-size:.75rem; color:#fff}
+  .pvn{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .pvn small{color:var(--dim); font-family:var(--mono); font-size:.7rem}
+  .pv b{font-family:var(--mono); font-weight:600; font-size:.95rem; font-variant-numeric:tabular-nums}
+  .pv.bad b{color:var(--lo)} .pv.none b{color:var(--dim)}
+  .pvf{font-family:var(--mono); font-size:.72rem; color:var(--mute); border-top:1px solid var(--line); padding-top:8px}
   .gimg img{width:100%; height:100%; object-fit:cover; display:block}
   .gph{width:100%; height:100%; display:grid; place-items:center; font-family:var(--disp); font-weight:700; font-size:clamp(2.4rem,9vw,3.6rem); color:rgba(255,255,255,.88); letter-spacing:-.03em}
-  .gcam{position:absolute; right:8px; top:8px; width:34px; height:34px; border-radius:50%; border:0; background:rgba(0,0,0,.62); color:#fff; display:grid; place-items:center}
+  .gcam{position:absolute; z-index:5; right:8px; top:8px; width:34px; height:34px; border-radius:50%; border:0; background:rgba(0,0,0,.62); color:#fff; display:grid; place-items:center}
   .gcam:hover{background:var(--accent); color:var(--accent-ink)}
   .gcam svg{width:17px; height:17px}
   .gbody{padding:12px 14px 14px; display:flex; flex-direction:column; gap:4px}
@@ -114,8 +129,11 @@
   .ghead{display:flex; gap:14px; align-items:center}
   .thumb{width:64px; height:64px; border-radius:6px; overflow:hidden; flex:none; border:0; padding:0; background:var(--surface2)}
   .thumb img{width:100%; height:100%; object-fit:cover; display:block}
+  .thumb{position:relative}
+  .thumb.ph{display:grid; place-items:center; font-family:var(--disp); font-weight:700; font-size:1.2rem; color:#fff; padding-bottom:10px}
+  .thumb.ph::after{content:"＋ รูป"; position:absolute; left:0; right:0; bottom:5px; font-family:var(--font); font-size:.62rem; font-weight:600; color:rgba(255,255,255,.75); text-align:center}
   .head{align-items:center}
-  .gthumb{width:96px; aspect-ratio:8/5; border-radius:6px; overflow:hidden; flex:none; background:var(--surface2)}
+  .gthumb{width:84px; aspect-ratio:1/1; border-radius:6px; overflow:hidden; flex:none; background:var(--surface2)}
   .gthumb img{width:100%; height:100%; object-fit:cover; display:block}
   .gthumb .gph{font-size:1.8rem}
   .ghead h2{font-family:var(--disp); margin:0; font-size:clamp(1.4rem,5vw,2rem); line-height:1.1; letter-spacing:-.02em; overflow-wrap:anywhere}
@@ -485,7 +503,7 @@
       var body=h('div','gbody'); body.appendChild(h('div','gt',g.name));
       body.appendChild(h('div','gs',s.n+' รหัส · '+(s.none===s.n?'ยังไม่ตั้งยอด':'มีของ '+num(s.total)+' ชิ้น')));
       var gn=h('div','gn'); gn.appendChild(h('span','i','+'+num(s.mi))); gn.appendChild(h('span','o','−'+num(s.mo))); gn.appendChild(h('span',null,'เดือนนี้')); body.appendChild(gn);
-      c.appendChild(body); box.appendChild(c);
+      c.appendChild(body); c.appendChild(previewEl(g,s)); box.appendChild(c);
     });
     var e=$('#emptyHome'); e.innerHTML='';
     if(!S.loaded){ e.hidden=false; e.appendChild(h('strong',null,'กำลังโหลดรายการสินค้า…')); }
@@ -496,12 +514,31 @@
     $('#mineBox').hidden=!mine.length; $('#mineTitle').textContent='ล่าสุดของ '+S.myName;
     var ml=$('#mineList'); ml.innerHTML=''; mine.forEach(function(m){ ml.appendChild(mvRow(m,false)); });
   }
+  function previewEl(g, s){
+    var pv=h('div','gprev'); pv.setAttribute('aria-hidden','true');
+    pv.appendChild(h('div','pvt',g.name));
+    var list=h('div','pvl');
+    g.items.forEach(function(p){
+      var k=stat(p), r=h('div','pv'+(k==='out'||k==='neg'?' bad':(k==='none'?' none':'')));
+      var src=S.covers[imgKey(p)];
+      if(src){ var im=h('img'); im.src=src; im.alt=''; r.appendChild(im); }
+      else { var ph=h('span','pvph',initial(rowTitle(p))); ph.style.background='hsl('+hue(rowTitle(p))+' 35% 26%)'; r.appendChild(ph); }
+      var nm=h('span','pvn',rowTitle(p)); if(shadeOf(p) && p.sku) nm.appendChild(h('small',null,' '+p.sku));
+      r.appendChild(nm);
+      r.appendChild(h('b',null,k==='none'?'–':num(balOf(p.id))));
+      list.appendChild(r);
+    });
+    pv.appendChild(list);
+    pv.appendChild(h('div','pvf','รวม '+num(s.total)+' ชิ้น · เดือนนี้ +'+num(s.mi)+' / −'+num(s.mo)));
+    return pv;
+  }
   function itemRow(p, maxBal){
     var k=stat(p), n=balOf(p.id), m=S.mon[p.id]||{in:0,out:0};
     var li=h('li','item'); li.dataset.id=p.id; li.dataset.k=k;
     var head=h('div','head'), info=h('div'); info.style.flex='1'; info.style.minWidth='0';
     var src=S.covers[imgKey(p)];
     if(src){ var th=h('button','thumb'); th.type='button'; th.dataset.act='img'; th.setAttribute('aria-label','ดูรูป '+rowTitle(p)); var im=h('img'); im.src=src; im.alt=rowTitle(p); im.loading='lazy'; th.appendChild(im); head.appendChild(th); }
+    else { var ph=h('button','thumb ph',initial(rowTitle(p))); ph.type='button'; ph.dataset.act='addimg'; ph.setAttribute('aria-label','เพิ่มรูป '+rowTitle(p)); ph.style.background='hsl('+hue(rowTitle(p))+' 35% 24%)'; head.appendChild(ph); }
     info.appendChild(h('div','name',rowTitle(p)));
     var subTxt = shadeOf(p) ? p.sku : ''; if(subTxt) info.appendChild(h('div','sub',subTxt));
     head.appendChild(info);
@@ -516,7 +553,6 @@
     [['in','รับเข้า'],['out','จ่ายออก'],['count','นับจริง']].forEach(function(a){ var bt=h('button',null,a[1]); bt.type='button'; bt.dataset.act=a[0]; acts.appendChild(bt); });
     li.appendChild(acts);
     var more=h('div','more');
-    if(!src){ var l2=h('button','link','＋ เพิ่มรูป'); l2.type='button'; l2.dataset.act='addimg'; more.appendChild(l2); }
     var l1=h('button','link','ดูประวัติ'); l1.type='button'; l1.dataset.act='hist'; more.appendChild(l1); li.appendChild(more);
     return li;
   }
@@ -737,7 +773,7 @@
     return new Promise(function(res,rej){
       var img=new Image(), url=URL.createObjectURL(file);
       img.onload=function(){
-        var W=640,H=400, c=document.createElement('canvas'); c.width=W; c.height=H; var x=c.getContext('2d');
+        var W=480,H=480, c=document.createElement('canvas'); c.width=W; c.height=H; var x=c.getContext('2d');
         var r=Math.max(W/img.width,H/img.height), w=img.width*r, hh=img.height*r;
         x.fillStyle='#181818'; x.fillRect(0,0,W,H); x.drawImage(img,(W-w)/2,(H-hh)/2,w,hh); URL.revokeObjectURL(url);
         var q=0.82, d=c.toDataURL('image/jpeg',q); while(d.length>240000 && q>0.4){ q-=0.1; d=c.toDataURL('image/jpeg',q); }
@@ -794,8 +830,19 @@
   });
   $('#groups').addEventListener('click',function(e){
     var cam=e.target.closest('[data-cover]'); if(cam){ e.stopPropagation(); pickCover(cam.dataset.cover); return; }
+    if(Date.now()-lpAt<700) return;   // เพิ่งกดค้างเพื่อดูพรีวิว ไม่ต้องพาเข้าไป
     var c=e.target.closest('.gcard'); if(c) go('g/'+encodeURIComponent(c.dataset.g));
   });
+  // มือถือไม่มี hover: กดค้างบนไทล์ ~0.4 วิ = เปิดพรีวิว แตะที่อื่นเพื่อปิด
+  var lpTimer=null, lpAt=0;
+  function clearPrev(except){ [].forEach.call(document.querySelectorAll('.gcard.prev'),function(x){ if(x!==except) x.classList.remove('prev'); }); }
+  $('#groups').addEventListener('touchstart',function(e){
+    var c=e.target.closest('.gcard'); if(!c || e.target.closest('[data-cover]')) return;
+    clearTimeout(lpTimer); lpTimer=setTimeout(function(){ clearPrev(c); c.classList.add('prev'); lpAt=Date.now(); },420);
+  },{passive:true});
+  ['touchend','touchmove','touchcancel'].forEach(function(ev){ $('#groups').addEventListener(ev,function(){ clearTimeout(lpTimer); },{passive:true}); });
+  document.addEventListener('touchstart',function(e){ var c=e.target.closest && e.target.closest('.gcard.prev'); clearPrev(c||null); },{passive:true});
+  $('#groups').addEventListener('contextmenu',function(e){ if(e.target.closest('.gcard')) e.preventDefault(); });
   $('#groups').addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' '){ var c=e.target.closest('.gcard'); if(c && e.target===c){ e.preventDefault(); go('g/'+encodeURIComponent(c.dataset.g)); } } });
   $('#gList').addEventListener('click',function(e){
     var b=e.target.closest('[data-act]'); if(!b) return; var li=b.closest('.item'); var pid=li.dataset.id, a=b.dataset.act;
