@@ -168,7 +168,7 @@
   .rp tr.zero td{color:#9a9a9a; background:#f4f4f4}
   .rp tr.neg td.bal{color:#c00}
   .rp tr.tot td{font-weight:700; background:#eee}
-  .rp tr.sub td{font-weight:600; background:#f7f7f7}
+  .rp tr.subt td{font-weight:600; background:#f7f7f7; color:#111}
   .rp h2.sec{font-family:var(--disp); font-size:12pt; margin:12px 0 4px}
   .rp h2.pb{break-before:page; page-break-before:always; margin-top:0}
   .checks{display:flex; flex-direction:column; gap:8px}
@@ -1142,7 +1142,7 @@
     var sumRows=[];
     groups.forEach(function(g){
       g.rows.forEach(function(r,i){ sumRows.push({cls:r.st==='out'?'zero':(r.st==='neg'?'neg':''), cells:[i===0?g.name:'', r.shade, r.sku, r.in||'', r.out||'', r.adj||'', r.st==='none'?'':r.bal, r.mout||'', STAT_TXT[r.st], r.last]}); });
-      sumRows.push({cls:'sub', cells:['รวม '+g.name,'','',g.in||'',g.out||'',g.adj||'',g.bal,g.mout||'','','']});
+      sumRows.push({cls:'subt', cells:['รวม '+g.name,'','',g.in||'',g.out||'',g.adj||'',g.bal,g.mout||'','','']});
     });
     sumRows.push({cls:'tot', cells:['รวมทั้งหมด','','',tot.in,tot.out,tot.adj||'',tot.bal,tot.mout||'','','']});
     var ppl={}; S.moves.forEach(function(m){ var n=isPerson(m.byName)?m.byName:'นำเข้าจากชีต (ไม่มีชื่อ)'; var x=ppl[n]||(ppl[n]={name:n,times:0,in:0,out:0,adj:0,last:''}); x.times++; if(m.type==='adj') x.adj+=m.delta; else if(m.delta>0) x.in+=m.delta; else x.out+=-m.delta; if(m.at>x.last) x.last=m.at; });
@@ -1169,7 +1169,7 @@
         var c=ws.getCell(5+ri,i+1); c.value=(v===''||v==null)?null:v; c.border=box;
         c.alignment={horizontal:(sec.head[i][1]==='l'?'left':'center'), vertical:'top', wrapText:true};
         if(r.cls==='zero'){ c.font={color:{argb:'FF9A9A9A'}}; c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF2F2F2'}}; }
-        else if(r.cls==='sub'){ c.font={bold:true}; c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF7F7F7'}}; }
+        else if(r.cls==='subt'){ c.font={bold:true}; c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF7F7F7'}}; }
         else if(r.cls==='tot'){ c.font={bold:true}; c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFE6E6E6'}}; }
         else if(r.cls==='neg' && i===6){ c.font={bold:true,color:{argb:'FFCC0000'}}; }
       });
