@@ -368,6 +368,10 @@
       <button class="btn" id="gCover" type="button">เปลี่ยนรูปปก</button>
       <button class="btn" id="gAdd" type="button">＋ เพิ่มรหัส/สีในกลุ่มนี้</button>
       <button class="btn" id="gHist" type="button">ประวัติกลุ่มนี้</button>
+      <div class="seg" id="gSort" role="group" aria-label="เรียงสี" style="flex:1;min-width:260px;max-width:420px">
+        <button type="button" data-s="qty" aria-pressed="true">เหลือมาก → น้อย</button>
+        <button type="button" data-s="code" aria-pressed="false">ตามรหัสสี</button>
+      </div>
     </div>
     <ul class="list" id="gList"></ul>
   </section>
@@ -449,6 +453,15 @@
   function groupsList(){
     var m={}; S.products.forEach(function(p){ var g=grpOf(p); (m[g]=m[g]||{name:g,items:[]}).items.push(p); });
     return Object.keys(m).sort(function(a,b){return a.localeCompare(b,'th')}).map(function(k){ m[k].items.sort(function(a,b){return String(rowTitle(a)).localeCompare(String(rowTitle(b)),'th',{numeric:true})}); return m[k]; });
+  }
+  // เรียงสีในกลุ่ม: 'qty' = เหลือมาก→น้อย (ค่าเริ่มต้น) · 'code' = ตามรหัสสี
+  try{ S.sort = localStorage.getItem('rcs_sort_v1') || 'qty'; }catch(e){ S.sort='qty'; }
+  function sortItems(items){
+    if(S.sort!=='qty') return items.slice();
+    return items.slice().sort(function(a,b){
+      var na=S.has[a.id]?balOf(a.id):-1e9, nb=S.has[b.id]?balOf(b.id):-1e9;
+      return nb-na || String(rowTitle(a)).localeCompare(String(rowTitle(b)),'th',{numeric:true});
+    });
   }
   function groupStats(g){
     var total=0, mi=0, mo=0, none=0;
@@ -622,7 +635,7 @@
     var pv=h('div','gprev'); pv.setAttribute('aria-hidden','true');
     pv.appendChild(h('div','pvt',g.name));
     var list=h('div','pvl');
-    g.items.forEach(function(p){
+    sortItems(g.items).forEach(function(p){
       var k=stat(p), r=h('div','pv'+(k==='neg'?' bad':(k==='out'?' out':(k==='none'?' none':''))));
       var src=S.covers[imgKey(p)];
       if(src){ var im=h('img'); im.src=src; im.alt=''; r.appendChild(im); }
@@ -700,7 +713,8 @@
     var s=groupStats(g), st=$('#gStats'); st.innerHTML='';
     [['',s.n+' รหัส'],['','คงเหลือ <b>'+num(s.total)+'</b> ชิ้น'],['i','เดือนนี้ +'+num(s.mi)],['o','−'+num(s.mo)]].forEach(function(x){ var e=h('span',x[0]); e.innerHTML=x[1]; st.appendChild(e); });
     var maxBal=1; g.items.forEach(function(p){ if(balOf(p.id)>maxBal) maxBal=balOf(p.id); });
-    g.items.forEach(function(p){ list.appendChild(itemRow(p,maxBal)); });
+    [].forEach.call($('#gSort').querySelectorAll('button'),function(b){ b.setAttribute('aria-pressed',String(b.dataset.s===S.sort)); });
+    sortItems(g.items).forEach(function(p){ list.appendChild(itemRow(p,maxBal)); });
   }
   function mvRow(m, withDel){
     var p=prod(m.product), li=h('li','mv'); li.dataset.id=m.id;
@@ -1233,6 +1247,7 @@
   $('#addProduct').onclick=function(){ openProduct(); };
   $('#gAdd').onclick=function(){ openProduct(S.grp); };
   $('#gCover').onclick=function(){ pickCover(S.grp); };
+  $('#gSort').onclick=function(e){ var b=e.target.closest('button'); if(!b) return; S.sort=b.dataset.s; try{ localStorage.setItem('rcs_sort_v1',S.sort); }catch(er){} renderGroup(); };
   $('#gHist').onclick=function(){ S.hGrp=S.grp; S.hProd=null; S.hWho=''; go('hist'); };
   $('#backHome').onclick=function(){ go('home'); };
   $('#expReport').onclick=openExport; $('#expHist').onclick=exportHist;
