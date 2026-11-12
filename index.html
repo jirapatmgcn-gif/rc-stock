@@ -173,7 +173,8 @@
   .rp h2.pb{break-before:page; page-break-before:always; margin-top:0}
   .checks{display:flex; flex-direction:column; gap:8px}
   .chk{display:flex; gap:10px; align-items:flex-start; padding:10px 12px; border:1px solid var(--line); border-radius:8px; background:var(--surface2); cursor:pointer; color:var(--ink)}
-  .chk input{width:18px; height:18px; margin-top:2px; accent-color:var(--accent); flex:none}
+  .field .chk input{width:18px; height:18px; min-height:0; padding:0; margin-top:2px; accent-color:var(--accent); flex:none}
+  .chk span{flex:1; min-width:0}
   .chk b{font-weight:600}
   .chk small{display:block; color:var(--mute); font-size:.78rem; font-weight:400}
   .rp sup{color:#0a7d6e; font-weight:700; margin-left:1px}
